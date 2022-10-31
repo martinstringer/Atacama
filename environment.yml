@@ -1,9 +1,9 @@
 dependencies:
   - bokeh
   - numpy
+  - pandas
   - geopandas
   - matplotlib
   - pip
   - pip:
-    - nbserverproxy
     - jupyter-server-proxy
