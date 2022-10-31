@@ -15,7 +15,7 @@ from matplotlib import cm
 from bokeh.events import Tap,DoubleTap,MouseMove
 from bokeh.models.widgets import DataTable,TableColumn
 
-data_folder = '../Data/'
+data_folder = 'data/'
 
 # Read in the shapefile with the hexagon data
 hexagons = gpd.read_file(data_folder+'Topo_hex.shp')
