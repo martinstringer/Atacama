@@ -312,4 +312,4 @@ r.yaxis.axis_label = 'Cost'# (relative)'
 page = gridplot([[p,column(widgetbox(q),r)],[]],toolbar_location="left")
 
 curdoc().add_root(page)
-   
+curdoc().title = "Simplified network tool"   
