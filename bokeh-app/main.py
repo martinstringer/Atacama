@@ -4,7 +4,7 @@
 import numpy as np
 import geopandas as gpd
 from pandas import read_csv
-from itertools import permutations
+#from itertools import permutations
 from bokeh.plotting import figure, output_file, show
 from bokeh.models import Range1d,ColumnDataSource,TapTool,LabelSet,Button,NumberFormatter,Label
 from bokeh.tile_providers import get_provider, STAMEN_TERRAIN
@@ -338,13 +338,13 @@ def show_optimum(event):
     points = np.append(water_source.data['ns'],water_demand.data['nd'])
     Npoints =  points.size
     min_cost = total_cost
-    if Npoints<5:
-        points_sequence = np.array(list(set(permutations(np.arange(Npoints)))))
-    else:
-        points_sequence = np.empty((1000,Npoints),dtype=int)
-        for i in range(points_sequence.shape[0]):
-            print(points_sequence.shape)
-            points_sequence[i,:] = np.random.choice(Npoints,Npoints,replace=False)
+    #if Npoints<5:
+    #    points_sequence = np.array(list(set(permutations(np.arange(Npoints)))))
+    #else:
+    points_sequence = np.empty((100,Npoints),dtype=int)
+    for i in range(points_sequence.shape[0]):
+        print(points_sequence.shape)
+        points_sequence[i,:] = np.random.choice(Npoints,Npoints,replace=False)
     for i in range(points_sequence.shape[0]):
         network_cost = 0
         xopt = []
