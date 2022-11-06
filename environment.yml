@@ -4,6 +4,7 @@ dependencies:
   - pandas
   - geopandas
   - matplotlib
+  - itertools
   - pip
   - pip:
     - jupyter-server-proxy
