@@ -4,9 +4,8 @@
 import numpy as np
 import geopandas as gpd
 from pandas import read_csv
-#from itertools import permutations
 from bokeh.plotting import figure, output_file, show
-from bokeh.models import Range1d,ColumnDataSource,TapTool,LabelSet,Button,NumberFormatter,Label
+from bokeh.models import Range1d,ColumnDataSource,TapTool,LabelSet,Button,NumberFormatter,Label,Slider
 from bokeh.tile_providers import get_provider, STAMEN_TERRAIN
 from bokeh.colors import RGB
 from bokeh.layouts import column,row,gridplot,widgetbox
@@ -66,6 +65,9 @@ Np = paths.shape[0]
 # Read the array with cost of each paths
 path_costs = np.load(data_folder+'path_costs_array.npy',allow_pickle=True)/1e5 
 
+# Read the array with permutations of points order
+permutations = np.load(data_folder+'points_sequences.npy',allow_pickle=True)
+
 # Create data source containing grid data
 grid_source=ColumnDataSource(dict(x=x,y=y,z=z,xh=xh,yh=yh,al=np.ones(Nh)*al))
 
@@ -107,12 +109,19 @@ optimised_network = ColumnDataSource(dict(xopt=[],yopt=[]))
 # Set up data source for new paths
 new_paths_data = ColumnDataSource(dict(xo=[],yo=[],co=[]))
 
+color_opt = 'lime' #'hotpink'
+
 # Set up data source for the computer-optimised paths
 optimal_path_data = ColumnDataSource(dict(xp=[],yp=[],nopt=[],copt=[]))
 
 # Set up data source for total costs etc.
-totals_data = ColumnDataSource(dict(x=[0,0,0,0],y=[3,2,1,0],text=['','','',''],
-                                    color = ['cyan','blue','magenta','green']))
+xl = 1
+xt = 1.2
+totals_data = ColumnDataSource(dict(x=[xt]*3,y=[2,1,0],
+                                    xl=[[],[],[]],
+                                    yl = [[2,2],[1,1],[0,0]],
+                                    text=['','',''],
+                                    color = ['cyan','blue',color_opt]))
 
 # Add hexagon grid
 h = p.patches('xh', 'yh', alpha='al',selection_alpha='al',nonselection_alpha='al',source=grid_source,
@@ -128,7 +137,12 @@ new_path_lines = p.multi_line('xo','yo',source=new_paths_data,line_color='cyan',
 # Set up highlighting of optimal path to existing network
 optimal_path_line = p.multi_line('xp','yp',source=optimal_path_data,line_color='blue',line_dash="dashed",line_width=3,
                            selection_line_alpha=1,nonselection_line_alpha=1,line_alpha=1)
-# Set up sources points
+# Set up "optimised" network lines
+optimised_lines_backing = p.multi_line('xopt','yopt',source=optimised_network,line_color='black',line_width=6,alpha=1,
+                             selection_line_alpha=1,nonselection_line_alpha=1,line_alpha=1)
+optimised_lines = p.multi_line('xopt','yopt',source=optimised_network,line_color=color_opt,line_width=2,alpha=1,
+                             selection_line_alpha=1,nonselection_line_alpha=1,line_alpha=1)
+# Set up source points
 sources = p.patches('xs','ys',hatch_color='cyan',hatch_pattern='horizontal_wave',
                     line_color='cyan',line_width=0.5,selection_line_alpha=al,nonselection_line_alpha=al,
                     fill_color='blue',fill_alpha=1,nonselection_fill_alpha=1,selection_fill_alpha=1,
@@ -140,14 +154,10 @@ demand = p.circle('xd','yd',source=water_demand,fill_color='blue',alpha=1,size=2
 labels = LabelSet(x='xd',y='yd',text='node',text_color='white',text_align='center',text_baseline='middle',
                   x_offset=0,y_offset=0,source=water_demand,render_mode='canvas')
 p.add_layout(labels)
-# And numeric lables on demand points
+# And numeric lables on source points
 source_labels = LabelSet(x='xc',y='yc',text='label',text_color='white',text_align='center',text_baseline='middle',
                   x_offset=0,y_offset=0,source=water_source,render_mode='canvas')
 p.add_layout(source_labels)
-
-# Set up "optimised" network lines
-optimised_lines = p.multi_line('xopt','yopt',source=optimised_network,line_color='green',line_width=4,alpha=al,
-                             selection_line_alpha=al,nonselection_line_alpha=al,line_alpha=al)
 
 # Set up list for all cells in network
 network_nodes = np.array([],dtype=int)
@@ -254,10 +264,10 @@ def create_demand_point(event):
             # Add cells on route to network nodes
             network_nodes = np.unique(np.append(network_nodes,route))
             # Update totals shown in summary text
-            totals_data.data['text']=['Total cost (connecting directly to a source) = {:.2f}'.format(direct_cost),
-                  'Total cost (if sharing nework) = {:.2f}'.format(total_cost),
-                  'Total saved by sharing network = {:.2f}   ({:.0%})'.format(saved_cost,saved_cost/direct_cost),
+            totals_data.data['text']=['Total cost connecting directly to a source = {:.2f}'.format(direct_cost),
+                  'Total cost if sharing nework = {:.2f}   ({:.0%} saved)'.format(total_cost,saved_cost/direct_cost),
                   '']
+            totals_data.data['xl']=[[0,xl],[0,xl],[0,0]]
         else:
             # For the first demand point, just update list of network nodes
             network_nodes = np.append(network_nodes,i)
@@ -301,10 +311,10 @@ def create_source(event):
             # Add cells on route to network nodes
             network_nodes = np.unique(np.append(network_nodes,route))
             # Update totals shown in summary text
-            totals_data.data['text']=['Total cost (connecting directly to a source) = {:.2f}'.format(direct_cost),
-                  'Total cost (if sharing nework) = {:.2f}'.format(total_cost),
-                  'Total saved by sharing network = {:.2f}   ({:.0%})'.format(saved_cost,saved_cost/direct_cost),
+            totals_data.data['text']=['Total cost connecting directly to a source = {:.2f}'.format(direct_cost),
+                  'Total cost if sharing nework = {:.2f}   ({:.0%} saved)'.format(total_cost,saved_cost/direct_cost),
                   '']
+            totals_data.data['xl']=[[0,xl],[0,xl],[0,0]]
         # Add this cell to list of sources
         xs = water_source.data['xs']
         xs.append(xh[i])
@@ -333,18 +343,19 @@ p.on_event(MouseMove,show_paths)
 
 # Add button to show alternative network
 def show_optimum(event):
-    global paths,path_costs,x,y,total_cost,direct_cost
+    global paths,path_costs,x,y,total_cost,direct_cost,permutations
     print('Finding lower cost solution...')
     points = np.append(water_source.data['ns'],water_demand.data['nd'])
     Npoints =  points.size
     min_cost = total_cost
-    #if Npoints<5:
-    #    points_sequence = np.array(list(set(permutations(np.arange(Npoints)))))
-    #else:
-    points_sequence = np.empty((100,Npoints),dtype=int)
-    for i in range(points_sequence.shape[0]):
-        print(points_sequence.shape)
-        points_sequence[i,:] = np.random.choice(Npoints,Npoints,replace=False)
+    if Npoints<3:
+        print('Insufficient points to find alternative solutions')
+    elif Npoints<permutations.size:
+        points_sequence = permutations[Npoints]
+    else:
+        points_sequence = np.empty((720,Npoints),dtype=int)
+        for i in range(points_sequence.shape[0]):
+            points_sequence[i,:] = np.random.choice(Npoints,Npoints,replace=False)
     for i in range(points_sequence.shape[0]):
         network_cost = 0
         xopt = []
@@ -356,7 +367,7 @@ def show_optimum(event):
              j = points[jp]
              if first_point:
                  pipeline = np.delete(points,jp)
-             if j not in pipeline:
+             if (j not in pipeline)and(pipeline.size>0):
                  kp = np.argmin(path_costs[j,pipeline])
                  k = pipeline[kp]
                  route  = paths[j,k]
@@ -367,7 +378,7 @@ def show_optimum(event):
                      pipeline = np.array(route)
                      first_point = False
                  else:
-                     pipeline = np.append(pipeline,route)
+                     pipeline = np.unique(np.append(pipeline,route))
                  #print('Connecting',jp,'th point',j,'Segment cost=',path_costs[j,k],'Pipeline:',pipeline)
         print('Iteration',i,'Total cost=',network_cost)
         if network_cost < min_cost:
@@ -376,20 +387,30 @@ def show_optimum(event):
     print('Lowest cost solution:',min_cost)
     saved_cost = direct_cost - min_cost
     totals_data.patch({ 'text' :
-                        [(3, 'Potential saved by planning in advance = {:.2f}   ({:.0%})'.format(saved_cost,saved_cost/direct_cost))]})
-    #print(xopt,yopt)  
+                        [(2, 'Total cost if planned in advance = {:.2f}   ({:.0%} saved)'.format(min_cost,saved_cost/direct_cost))]})
+    totals_data.patch({ 'xl' :
+                        [(2, [0,xl])]})
+    #print(xopt,yopt)
 
-# Add text explaining the total cost of the scenarios
+def reset_optimum(event):
+        totals_data.patch({ 'text' : [(2, '')]})
+        totals_data.patch({ 'xl' : [(2, [])]})
+        optimised_network.data.update(ColumnDataSource(dict(xopt=[],yopt=[])).data)
+        print('Lower cost solution reset')
+# Add figure with key explaining the total cost of the scenarios
 s = figure(width=w, height=130,tools="",outline_line_alpha=0,
-                    x_range=Range1d(0,10), y_range=Range1d(0,4),margin=(0,0,20,30))
+                    x_range=Range1d(0,8), y_range=Range1d(-0.5,3),margin=(0,0,20,30))
 s.xgrid.visible = False
 s.ygrid.visible = False
 s.axis.visible = False
 
-summary = LabelSet(x='x', y='y', text='text',
-                    source=totals_data, text_color='color',text_font_size='14px',text_align='left')
-
-s.add_layout(summary)
+# Add lines
+key_lines = s.multi_line('xl','yl',source=totals_data,line_color='color',line_width=5,alpha=1,
+                              selection_line_alpha=1,nonselection_line_alpha=1,line_alpha=1)
+# Add labels
+key_text = LabelSet(x='x', y='y', text='text',source=totals_data, text_color='black',
+                    text_font_size='14px',text_align='left',text_baseline='middle')
+s.add_layout(key_text)
 
 # Add graph to illustrate costs
 r = figure(width=w, height=250,tools="",margin=(0,0,30,20))#,y_range=Range1d(0,1))
@@ -417,11 +438,23 @@ q = DataTable(source=network, columns=columns, width=w, height=250,fit_columns=F
 
 
 # Add a button to show a lower cost solution
-b = Button(label="Show lower cost solution", button_type="success",width=200,margin=(0,0,0,200))
-b.on_event(ButtonClick,show_optimum)
+show = Button(label="Show lower cost solution",button_type="success",width=200,margin=(0,0,0,80))
+show.on_event(ButtonClick,show_optimum)
 
+# Add a button to hide lower cost solution
+reset = Button(label="Reset lower cost solution",width=200,margin=(0,0,0,60))
+reset.on_event(ButtonClick,reset_optimum)
 
-page = gridplot([[p,column(s,r,b,widgetbox(q))],[]],toolbar_location="left")
+# Add slider to hide or show the hexagon grid
+def change_grid_alpha(attr,old,new):
+    Ncells = len(grid_source.data['al'])
+    grid_source.data['al']=[new]*Ncells
+    #print('Changed grid alpha to',new)
+
+slider = Slider(start=0,end=1,value=al,step=0.05,title="Move slider to hide or show combined cost grid.  Current value")
+slider.on_change('value',change_grid_alpha)
+
+page = gridplot([[column(p,slider),column(s,r,row(show,reset),q)],[]],toolbar_location="left")
 
 curdoc().title = 'Simplified network tool'
 
