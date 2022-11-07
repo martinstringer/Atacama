@@ -1,9 +1,7 @@
-# To run this code, go to command line (not python shell) and enter
-# bokeh serve --show read_paths.py
+# To run this code, go to command line (not python shell) one folder up from this file and enter:
+# bokeh serve --show bokeh-app
 
 import numpy as np
-import geopandas as gpd
-from pandas import read_csv
 from bokeh.plotting import figure, output_file, show
 from bokeh.models import Range1d,ColumnDataSource,TapTool,LabelSet,Button,NumberFormatter,Label,Slider
 from bokeh.tile_providers import get_provider, STAMEN_TERRAIN
@@ -17,33 +15,16 @@ from bokeh.models.widgets import DataTable,TableColumn
 
 data_folder = 'bokeh-app/data/'
 
-# Read in the shapefile with the hexagon data
-hexagons = gpd.read_file(data_folder+'Topo_hex.shp')
-# Read average heights from csv file
-data = read_csv(data_folder+'hex_centroid_cost.csv')
-# Merge two data sets and convert to desired coordinate system
-hexagons = hexagons.merge(data,on='GRID_ID').to_crs("Web Mercator")
+# Read the coordinates of the hexagon grid
+grid_data = np.load(data_folder+'grid_data.npy',allow_pickle=True)
 
-# Pull out the vertices of all the hexagons as a list
-vertices = [g for g in hexagons.geometry]
-Nh = len(vertices)
-# Set up lists to contain x and y coordinates of vertices
-xh = []
-yh = []
-x=np.zeros(Nh)
-y=np.zeros(Nh)
-z=np.zeros(Nh)
-# Populate lists from shapefile data
-for j in range(Nh):
-    xv,yv = np.array(vertices[j].exterior.coords.xy)
-    xh.append(xv)
-    yh.append(yv)
-    xy = np.array(vertices[j].centroid.xy)
-    x[j] = xy[0][0]
-    y[j] = xy[1][0]         
-    #z[j] = hexagons.TOPO_mean[j]
-    z[j] = hexagons.COMBINED_mean[j]
-    
+x = np.array(grid_data.item().get('x'))
+y = np.array(grid_data.item().get('y'))
+z = np.array(grid_data.item().get('z'))
+xh = grid_data.item().get('xh')
+yh = grid_data.item().get('yh')
+Nh = x.size
+
 # Use the range of the vertices to set bounds of map
 xmin = np.min(xh)
 xmax=np.max(xh)
@@ -58,6 +39,9 @@ w = int(round(h*(xmax-xmin)/(ymax-ymin),0))
 # Choose default alpha value for hexagon shading
 al = 0.8
 
+# Create data source containing grid data
+grid_source=ColumnDataSource(dict(x=x,y=y,z=z,xh=xh,yh=yh,al=np.ones(Nh)*al))
+
 # Read the array with all the optimised paths
 paths = np.load(data_folder+'paths_array.npy',allow_pickle=True)
 Np = paths.shape[0]
@@ -67,9 +51,6 @@ path_costs = np.load(data_folder+'path_costs_array.npy',allow_pickle=True)/1e5
 
 # Read the array with permutations of points order
 permutations = np.load(data_folder+'points_sequences.npy',allow_pickle=True)
-
-# Create data source containing grid data
-grid_source=ColumnDataSource(dict(x=x,y=y,z=z,xh=xh,yh=yh,al=np.ones(Nh)*al))
 
 # Set up map frame
 p = figure(x_axis_type="mercator", y_axis_type="mercator",
@@ -162,7 +143,7 @@ p.add_layout(source_labels)
 # Set up list for all cells in network
 network_nodes = np.array([],dtype=int)
 
-
+# Set up variables for the total costs
 total_cost = 0
 direct_cost = 0
 
@@ -438,7 +419,7 @@ q = DataTable(source=network, columns=columns, width=w, height=250,fit_columns=F
 
 
 # Add a button to show a lower cost solution
-show = Button(label="Show lower cost solution",button_type="success",width=200,margin=(0,0,0,80))
+show = Button(label="Find lower cost solution",button_type="success",width=200,margin=(0,0,0,80))
 show.on_event(ButtonClick,show_optimum)
 
 # Add a button to hide lower cost solution
