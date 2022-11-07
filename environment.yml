@@ -1,8 +1,6 @@
 dependencies:
   - bokeh
   - numpy
-  - pandas
-  - geopandas
   - matplotlib
   - pip
   - pip:
